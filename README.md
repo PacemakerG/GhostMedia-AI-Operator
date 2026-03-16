@@ -1,4 +1,4 @@
-# OmniMedia-AI-Operator
+# GhostMedia-AI-Operator
 
 全 AI 自媒体运营系统（规划中）。
 
@@ -27,4 +27,3 @@
 - `agents/publisher`：发布编排
 - `agents/community-manager`：评论互动与私信策略
 - `orchestration`：任务调度与状态编排
-
