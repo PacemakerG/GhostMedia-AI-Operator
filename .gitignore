@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+
+# Node
+node_modules/
+dist/
+
+# OS/IDE
+.DS_Store
+.vscode/
+.idea/
+
+# Runtime
+*.log
+*.sqlite3
+*.db
+cookiesFile/
+videoFile/
+
