@@ -14,12 +14,18 @@
 
 ## 当前阶段
 
-已接入初始发布模块：
-- `apps/social-auto-upload`（来自 `dreammis/social-auto-upload`，作为首个发布执行器）
+已完成基础模块迁移（根目录）：
+- `Trend-grab-agent`：热点抓取与分析
+- `content-vedio-agent`：内容生成与视频配音
+- `social-auto-upload`：多平台自动发布
+- `Riona-AI-Agent`：评论互动运营官（后续接入）
 
 ## 建议后续目录
 
-- `apps/social-auto-upload`：多平台发布执行
+- `Trend-grab-agent`：热点抓取与分析
+- `content-vedio-agent`：内容生成与视频配音
+- `social-auto-upload`：多平台发布执行
+- `Riona-AI-Agent`：互动运营（评论/私信）
 - `agents/topic-researcher`：选题与热点追踪
 - `agents/content-collector`：素材采集与清洗
 - `agents/video-editor`：自动剪辑流水线
