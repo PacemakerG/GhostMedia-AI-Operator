@@ -88,6 +88,9 @@ class VideoParams(BaseModel):
     voice_name: Optional[str] = ""
     voice_volume: Optional[float] = 1.0
     voice_rate: Optional[float] = 1.0
+    voice_style: Optional[str] = ""
+    voice_style_degree: Optional[float] = 1.0
+    voice_role: Optional[str] = ""
     bgm_type: Optional[str] = "random"
     bgm_file: Optional[str] = ""
     bgm_volume: Optional[float] = 0.2
@@ -107,11 +110,17 @@ class VideoParams(BaseModel):
 
 
 class SubtitleRequest(BaseModel):
+    video_subject: Optional[str] = ""
     video_script: str
+    video_concat_mode: Optional[VideoConcatMode] = VideoConcatMode.random.value
     video_language: Optional[str] = ""
+    custom_audio_file: Optional[str] = None
     voice_name: Optional[str] = "zh-CN-XiaoxiaoNeural-Female"
     voice_volume: Optional[float] = 1.0
     voice_rate: Optional[float] = 1.2
+    voice_style: Optional[str] = ""
+    voice_style_degree: Optional[float] = 1.0
+    voice_role: Optional[str] = ""
     bgm_type: Optional[str] = "random"
     bgm_file: Optional[str] = ""
     bgm_volume: Optional[float] = 0.2
@@ -123,19 +132,28 @@ class SubtitleRequest(BaseModel):
     stroke_color: Optional[str] = "#000000"
     stroke_width: float = 1.5
     video_source: Optional[str] = "local"
-    subtitle_enabled: Optional[str] = "true"
+    subtitle_enabled: Optional[bool] = True
+    paragraph_number: Optional[int] = 1
 
 
 class AudioRequest(BaseModel):
+    video_subject: Optional[str] = ""
     video_script: str
+    video_concat_mode: Optional[VideoConcatMode] = VideoConcatMode.random.value
     video_language: Optional[str] = ""
+    custom_audio_file: Optional[str] = None
     voice_name: Optional[str] = "zh-CN-XiaoxiaoNeural-Female"
     voice_volume: Optional[float] = 1.0
     voice_rate: Optional[float] = 1.2
+    voice_style: Optional[str] = ""
+    voice_style_degree: Optional[float] = 1.0
+    voice_role: Optional[str] = ""
     bgm_type: Optional[str] = "random"
     bgm_file: Optional[str] = ""
     bgm_volume: Optional[float] = 0.2
     video_source: Optional[str] = "local"
+    subtitle_enabled: Optional[bool] = True
+    paragraph_number: Optional[int] = 1
 
 
 class VideoScriptParams:

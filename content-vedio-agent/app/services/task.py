@@ -96,6 +96,9 @@ def generate_audio(task_id, params, video_script):
             voice_name=voice.parse_voice_name(params.voice_name),
             voice_rate=params.voice_rate,
             voice_file=audio_file,
+            voice_style=getattr(params, "voice_style", ""),
+            voice_style_degree=getattr(params, "voice_style_degree", 1.0),
+            voice_role=getattr(params, "voice_role", ""),
         )
         if sub_maker is None:
             sm.state.update_task(task_id, state=const.TASK_STATE_FAILED)
@@ -130,7 +133,7 @@ def generate_subtitle(task_id, params, video_script, sub_maker, audio_file):
         - subtitle_path: path to the generated subtitle file
     '''
     logger.info("\n\n## generating subtitle")
-    if not params.subtitle_enabled or sub_maker is None:
+    if not params.subtitle_enabled:
         return ""
 
     subtitle_path = path.join(utils.task_dir(task_id), "subtitle.srt")
@@ -138,16 +141,25 @@ def generate_subtitle(task_id, params, video_script, sub_maker, audio_file):
     logger.info(f"\n\n## generating subtitle, provider: {subtitle_provider}")
 
     subtitle_fallback = False
-    if subtitle_provider == "edge":
+    if sub_maker is not None and subtitle_provider == "edge":
         voice.create_subtitle(
             text=video_script, sub_maker=sub_maker, subtitle_file=subtitle_path
         )
         if not os.path.exists(subtitle_path):
             subtitle_fallback = True
             logger.warning("subtitle file not found, fallback to whisper")
+    elif sub_maker is None:
+        subtitle_fallback = True
+        logger.info("custom audio detected, fallback to script-based/whisper subtitle generation")
 
     if subtitle_provider == "whisper" or subtitle_fallback:
         subtitle.create(audio_file=audio_file, subtitle_file=subtitle_path)
+        if not os.path.exists(subtitle_path):
+            subtitle.create_from_script(
+                audio_file=audio_file,
+                video_script=video_script,
+                subtitle_file=subtitle_path,
+            )
         logger.info("\n\n## correcting subtitle")
         subtitle.correct(subtitle_file=subtitle_path, video_script=video_script)
 
@@ -209,7 +221,7 @@ def generate_final_videos(
             utils.task_dir(task_id), f"combined-{index}.mp4"
         )
         logger.info(f"\n\n## combining video: {index} => {combined_video_path}")
-        video.combine_videos(
+        combined_result = video.combine_videos(
             combined_video_path=combined_video_path,
             video_paths=downloaded_videos,
             audio_file=audio_file,
@@ -219,6 +231,9 @@ def generate_final_videos(
             max_clip_duration=params.video_clip_duration,
             threads=params.n_threads,
         )
+        if not combined_result or not os.path.exists(combined_video_path):
+            logger.error(f"combined video not found: {combined_video_path}")
+            return [], []
 
         _progress += 50 / params.video_count / 2
         sm.state.update_task(task_id, progress=_progress)
@@ -243,7 +258,7 @@ def generate_final_videos(
     return final_video_paths, combined_video_paths
 
 
-def start(task_id, params: VideoParams, stop_at: str = "video"):
+def _start_impl(task_id, params: VideoParams, stop_at: str = "video"):
     logger.info(f"start task: {task_id}, stop_at: {stop_at}")
     sm.state.update_task(task_id, state=const.TASK_STATE_PROCESSING, progress=5)
 
@@ -363,6 +378,20 @@ def start(task_id, params: VideoParams, stop_at: str = "video"):
         task_id, state=const.TASK_STATE_COMPLETE, progress=100, **kwargs
     )
     return kwargs
+
+
+def start(task_id, params: VideoParams, stop_at: str = "video"):
+    try:
+        return _start_impl(task_id, params, stop_at=stop_at)
+    except Exception as exc:
+        logger.exception(f"task failed with unhandled exception: {exc}")
+        sm.state.update_task(
+            task_id,
+            state=const.TASK_STATE_FAILED,
+            progress=0,
+            error=str(exc),
+        )
+        return None
 
 
 if __name__ == "__main__":

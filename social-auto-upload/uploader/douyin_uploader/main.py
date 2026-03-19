@@ -19,6 +19,7 @@ async def cookie_auth(account_file):
         page = await context.new_page()
         # 访问指定的 URL
         await page.goto("https://creator.douyin.com/creator-micro/content/upload")
+        await page.wait_for_timeout(3000)
         try:
             await page.wait_for_url("https://creator.douyin.com/creator-micro/content/upload", timeout=5000)
         except:
@@ -97,6 +98,39 @@ class DouYinVideo(object):
         douyin_logger.info('视频出错了，重新上传中')
         await page.locator('div.progress-div [class^="upload-btn-input"]').set_input_files(self.file_path)
 
+    async def ensure_not_login_page(self, page):
+        await page.wait_for_timeout(2000)
+        login_markers = [
+            page.get_by_text('手机号登录'),
+            page.get_by_text('扫码登录'),
+            page.get_by_placeholder('请输入手机号'),
+            page.get_by_placeholder('请输入验证码'),
+        ]
+        for locator in login_markers:
+            try:
+                if await locator.count():
+                    raise RuntimeError("抖音当前进入了登录页，cookie 已失效或页面未保持登录态")
+            except RuntimeError:
+                raise
+            except Exception:
+                continue
+
+    async def get_upload_input(self, page):
+        selectors = [
+            'input[type="file"]',
+            'div[class*="upload"] input[type="file"]',
+            'input[accept*="video"]',
+        ]
+        for selector in selectors:
+            locator = page.locator(selector)
+            try:
+                count = await locator.count()
+            except Exception:
+                count = 0
+            if count > 0:
+                return locator.first
+        raise RuntimeError("未找到抖音上传文件输入框")
+
     async def upload(self, playwright: Playwright) -> None:
         # 使用 Chromium 浏览器启动一个浏览器实例
         if self.local_executable_path:
@@ -115,8 +149,10 @@ class DouYinVideo(object):
         # 等待页面跳转到指定的 URL，没进入，则自动等待到超时
         douyin_logger.info(f'[-] 正在打开主页...')
         await page.wait_for_url("https://creator.douyin.com/creator-micro/content/upload")
+        await self.ensure_not_login_page(page)
         # 点击 "上传视频" 按钮
-        await page.locator("div[class^='container'] input").set_input_files(self.file_path)
+        upload_input = await self.get_upload_input(page)
+        await upload_input.set_input_files(self.file_path)
 
         # 等待页面跳转到指定的 URL 2025.01.08修改在原有基础上兼容两种页面
         while True:
@@ -390,5 +426,4 @@ class DouYinVideo(object):
     async def main(self):
         async with async_playwright() as playwright:
             await self.upload(playwright)
-
 

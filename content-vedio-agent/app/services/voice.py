@@ -8,13 +8,22 @@ from xml.sax.saxutils import unescape
 import edge_tts
 import requests
 from edge_tts import SubMaker, submaker
-from edge_tts.submaker import mktimestamp
 from loguru import logger
 from moviepy.video.tools import subtitles
 from moviepy.audio.io.AudioFileClip import AudioFileClip
 
 from app.config import config
 from app.utils import utils
+
+try:
+    from edge_tts.submaker import mktimestamp
+except ImportError:
+    def mktimestamp(time_unit: float) -> str:
+        total_ms = int(round(float(time_unit) / 10000.0))
+        hours, remainder = divmod(total_ms, 3600 * 1000)
+        minutes, remainder = divmod(remainder, 60 * 1000)
+        seconds, milliseconds = divmod(remainder, 1000)
+        return f"{hours:02d}:{minutes:02d}:{seconds:02d}.{milliseconds:03d}"
 
 
 def get_siliconflow_voices() -> list[str]:
@@ -1122,9 +1131,19 @@ def tts(
     voice_rate: float,
     voice_file: str,
     voice_volume: float = 1.0,
+    voice_style: str = "",
+    voice_style_degree: float = 1.0,
+    voice_role: str = "",
 ) -> Union[SubMaker, None]:
     if is_azure_v2_voice(voice_name):
-        return azure_tts_v2(text, voice_name, voice_file)
+        return azure_tts_v2(
+            text,
+            voice_name,
+            voice_file,
+            voice_style=voice_style,
+            voice_style_degree=voice_style_degree,
+            voice_role=voice_role,
+        )
     elif is_siliconflow_voice(voice_name):
         # 从voice_name中提取模型和声音
         # 格式: siliconflow:model:voice-Gender
@@ -1184,14 +1203,17 @@ def azure_tts_v1(
                     async for chunk in communicate.stream():
                         if chunk["type"] == "audio":
                             file.write(chunk["data"])
-                        elif chunk["type"] == "WordBoundary":
-                            sub_maker.create_sub(
-                                (chunk["offset"], chunk["duration"]), chunk["text"]
-                            )
+                        elif chunk["type"] in {"WordBoundary", "SentenceBoundary"}:
+                            if hasattr(sub_maker, "feed"):
+                                sub_maker.feed(chunk)
+                            else:
+                                sub_maker.create_sub(
+                                    (chunk["offset"], chunk["duration"]), chunk["text"]
+                                )
                 return sub_maker
 
             sub_maker = asyncio.run(_do())
-            if not sub_maker or not sub_maker.subs:
+            if not sub_maker or not extract_sub_entries(sub_maker):
                 logger.warning("failed, sub_maker is None or sub_maker.subs is None")
                 continue
 
@@ -1340,7 +1362,14 @@ def siliconflow_tts(
     return None
 
 
-def azure_tts_v2(text: str, voice_name: str, voice_file: str) -> Union[SubMaker, None]:
+def azure_tts_v2(
+    text: str,
+    voice_name: str,
+    voice_file: str,
+    voice_style: str = "",
+    voice_style_degree: float = 1.0,
+    voice_role: str = "",
+) -> Union[SubMaker, None]:
     voice_name = is_azure_v2_voice(voice_name)
     if not voice_name:
         logger.error(f"invalid voice name: {voice_name}")
@@ -1416,7 +1445,14 @@ def azure_tts_v2(text: str, voice_name: str, voice_file: str) -> Union[SubMaker,
                 speech_synthesizer_word_boundary_cb
             )
 
-            result = speech_synthesizer.speak_text_async(text).get()
+            ssml = build_azure_ssml(
+                text=text,
+                voice_name=voice_name,
+                voice_style=voice_style,
+                voice_style_degree=voice_style_degree,
+                voice_role=voice_role,
+            )
+            result = speech_synthesizer.speak_ssml_async(ssml).get()
             if result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
                 logger.success(f"azure v2 speech synthesis succeeded: {voice_file}")
                 return sub_maker
@@ -1433,6 +1469,44 @@ def azure_tts_v2(text: str, voice_name: str, voice_file: str) -> Union[SubMaker,
         except Exception as e:
             logger.error(f"failed, error: {str(e)}")
     return None
+
+
+def build_azure_ssml(
+    text: str,
+    voice_name: str,
+    voice_style: str = "",
+    voice_style_degree: float = 1.0,
+    voice_role: str = "",
+) -> str:
+    import html
+
+    escaped_text = html.escape((text or "").strip())
+    clean_voice_name = parse_voice_name(voice_name)
+    attrs = []
+    style = (voice_style or "").strip()
+    role = (voice_role or "").strip()
+    if style:
+        attrs.append(f'style="{html.escape(style)}"')
+        try:
+            degree = float(voice_style_degree or 1.0)
+        except (TypeError, ValueError):
+            degree = 1.0
+        attrs.append(f'styledegree="{degree:.2f}"')
+        if role:
+            attrs.append(f'role="{html.escape(role)}"')
+        express_open = f"<mstts:express-as {' '.join(attrs)}>"
+        express_close = "</mstts:express-as>"
+    else:
+        express_open = ""
+        express_close = ""
+
+    return (
+        '<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" '
+        'xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="zh-CN">'
+        f'<voice name="{html.escape(clean_voice_name)}">'
+        f'{express_open}<prosody rate="+3%" pitch="+0Hz">{escaped_text}</prosody>{express_close}'
+        "</voice></speak>"
+    )
 
 
 def gemini_tts(
@@ -1620,8 +1694,7 @@ def create_subtitle(sub_maker: submaker.SubMaker, text: str, subtitle_file: str)
     sub_line = ""
 
     try:
-        for _, (offset, sub) in enumerate(zip(sub_maker.offset, sub_maker.subs)):
-            _start_time, end_time = offset
+        for _start_time, end_time, sub in extract_sub_entries(sub_maker):
             if start_time < 0:
                 start_time = _start_time
 
@@ -1656,6 +1729,10 @@ def create_subtitle(sub_maker: submaker.SubMaker, text: str, subtitle_file: str)
             logger.warning(
                 f"failed, sub_items len: {len(sub_items)}, script_lines len: {len(script_lines)}"
             )
+            if hasattr(sub_maker, "get_srt"):
+                with open(subtitle_file, "w", encoding="utf-8") as file:
+                    file.write(sub_maker.get_srt())
+                logger.info(f"fallback subtitle file created: {subtitle_file}")
 
     except Exception as e:
         logger.error(f"failed, error: {str(e)}")
@@ -1665,9 +1742,10 @@ def _get_audio_duration_from_submaker(sub_maker: submaker.SubMaker):
     """
     获取音频时长
     """
-    if not sub_maker.offset:
+    entries = extract_sub_entries(sub_maker)
+    if not entries:
         return 0.0
-    return sub_maker.offset[-1][1] / 10000000
+    return entries[-1][1] / 10000000
 
 def _get_audio_duration_from_mp3(mp3_file: str) -> float:
     """
@@ -1698,6 +1776,22 @@ def get_audio_duration( target: Union[str, submaker.SubMaker]) -> float:
     else:
         logger.error(f"Invalid target type: {type(target)}")
         return 0.0
+
+
+def extract_sub_entries(sub_maker: submaker.SubMaker | object) -> list[tuple[int, int, str]]:
+    if hasattr(sub_maker, "offset") and hasattr(sub_maker, "subs"):
+        return [
+            (int(start), int(end), str(text))
+            for (start, end), text in zip(sub_maker.offset, sub_maker.subs)
+        ]
+    if hasattr(sub_maker, "cues"):
+        items: list[tuple[int, int, str]] = []
+        for cue in getattr(sub_maker, "cues", []):
+            start_100ns = int(cue.start.total_seconds() * 10000000)
+            end_100ns = int(cue.end.total_seconds() * 10000000)
+            items.append((start_100ns, end_100ns, str(cue.content)))
+        return items
+    return []
 
 if __name__ == "__main__":
     voice_name = "zh-CN-XiaoxiaoMultilingualNeural-V2-Female"

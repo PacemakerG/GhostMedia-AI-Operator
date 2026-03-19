@@ -132,6 +132,9 @@ def combine_videos(
     req_dur = max_clip_duration
     logger.info(f"maximum clip duration: {req_dur} seconds")
     output_dir = os.path.dirname(combined_video_path)
+    transition_mode_value = None
+    if video_transition_mode is not None:
+        transition_mode_value = getattr(video_transition_mode, "value", video_transition_mode)
 
     aspect = VideoAspect(video_aspect)
     video_width, video_height = aspect.to_resolution()
@@ -192,19 +195,19 @@ def combine_videos(
                     background = ColorClip(size=(video_width, video_height), color=(0, 0, 0)).with_duration(clip_duration)
                     clip_resized = clip.resized(new_size=(new_width, new_height)).with_position("center")
                     clip = CompositeVideoClip([background, clip_resized])
-                    
+            
             shuffle_side = random.choice(["left", "right", "top", "bottom"])
-            if video_transition_mode.value == VideoTransitionMode.none.value:
+            if transition_mode_value in {None, VideoTransitionMode.none.value}:
                 clip = clip
-            elif video_transition_mode.value == VideoTransitionMode.fade_in.value:
+            elif transition_mode_value == VideoTransitionMode.fade_in.value:
                 clip = video_effects.fadein_transition(clip, 1)
-            elif video_transition_mode.value == VideoTransitionMode.fade_out.value:
+            elif transition_mode_value == VideoTransitionMode.fade_out.value:
                 clip = video_effects.fadeout_transition(clip, 1)
-            elif video_transition_mode.value == VideoTransitionMode.slide_in.value:
+            elif transition_mode_value == VideoTransitionMode.slide_in.value:
                 clip = video_effects.slidein_transition(clip, 1, shuffle_side)
-            elif video_transition_mode.value == VideoTransitionMode.slide_out.value:
+            elif transition_mode_value == VideoTransitionMode.slide_out.value:
                 clip = video_effects.slideout_transition(clip, 1, shuffle_side)
-            elif video_transition_mode.value == VideoTransitionMode.shuffle.value:
+            elif transition_mode_value == VideoTransitionMode.shuffle.value:
                 transition_funcs = [
                     lambda c: video_effects.fadein_transition(c, 1),
                     lambda c: video_effects.fadeout_transition(c, 1),
@@ -244,7 +247,7 @@ def combine_videos(
     logger.info("starting clip merging process")
     if not processed_clips:
         logger.warning("no clips available for merging")
-        return combined_video_path
+        return ""
     
     # if there is only one clip, use it directly
     if len(processed_clips) == 1:

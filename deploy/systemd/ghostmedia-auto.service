@@ -1,0 +1,14 @@
+[Unit]
+Description=GhostMedia Auto Cycle
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/elon/workspace/GhostMedia-AI-Operator
+Environment=GHOSTMEDIA_ENV=ghostmedia
+ExecStart=/bin/bash /home/elon/workspace/GhostMedia-AI-Operator/scripts/run_auto_cycle.sh
+Nice=5
+
+[Install]
+WantedBy=multi-user.target

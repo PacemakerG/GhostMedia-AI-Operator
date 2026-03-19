@@ -142,6 +142,39 @@ def create(audio_file, subtitle_file: str = ""):
     logger.info(f"subtitle file created: {subtitle_file}")
 
 
+def create_from_script(audio_file: str, video_script: str, subtitle_file: str = "") -> str:
+    if not subtitle_file:
+        subtitle_file = f"{audio_file}.srt"
+
+    script_lines = utils.split_string_by_punctuations(video_script)
+    if not script_lines:
+        logger.warning("video script is empty, skipping subtitle generation from script")
+        return ""
+
+    from app.services import voice
+
+    audio_duration = voice.get_audio_duration(audio_file)
+    if audio_duration <= 0:
+        logger.warning(f"invalid audio duration for subtitle generation: {audio_file}")
+        return ""
+
+    weights = [max(len(line.strip()), 1) for line in script_lines]
+    total_weight = sum(weights)
+    cursor = 0.0
+    lines = []
+    for idx, (line, weight) in enumerate(zip(script_lines, weights), start=1):
+        portion = audio_duration * (weight / total_weight)
+        start_time = cursor
+        end_time = audio_duration if idx == len(script_lines) else min(audio_duration, cursor + portion)
+        cursor = end_time
+        lines.append(utils.text_to_srt(idx, line.strip(), start_time, end_time))
+
+    with open(subtitle_file, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
+    logger.info(f"subtitle file created from script: {subtitle_file}, duration: {audio_duration}")
+    return subtitle_file
+
+
 def file_to_subtitles(filename):
     if not filename or not os.path.isfile(filename):
         return []

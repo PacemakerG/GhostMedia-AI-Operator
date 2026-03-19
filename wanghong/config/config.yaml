@@ -1,0 +1,114 @@
+# X 平台内容抓取配置
+
+# X 平台登录凭证（必需）
+x_credentials:
+  username: "your_x_username"
+  password: "your_x_password"
+  # 或使用 cookies 文件路径
+  # cookies_file: "config/x_cookies.json"
+
+# AI 配置
+ai_config:
+  # 使用的模型
+  model: "gpt-4"
+  
+  # API Key（也可以从环境变量读取）
+  api_key: "${OPENAI_API_KEY}"
+  
+  # 可选：自定义 API 基础地址
+  # api_base: "https://api.openai.com/v1"
+  
+  # 温度参数（创造性 vs 确定性）
+  temperature: 0.7
+  
+  # 最大 token 数
+  max_tokens: 1000
+
+# 爬虫配置
+crawler:
+  # 请求间隔（秒），防止被封
+  request_delay: 2.0
+  
+  # 重试次数
+  max_retries: 3
+  
+  # 超时时间（秒）
+  timeout: 30
+  
+  # 用户代理
+  user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+
+# 下载配置
+download:
+  # 下载目录
+  download_dir: "data/raw/media"
+  
+  # 是否下载图片
+  save_images: true
+  
+  # 是否下载视频
+  save_videos: true
+  
+  # 图片质量: original | large | medium | small
+  image_quality: "original"
+  
+  # 视频质量: original | high | medium | low
+  video_quality: "high"
+  
+  # 最大并发下载数
+  max_concurrent: 3
+  
+  # 文件大小限制
+  max_image_size: 20971520  # 20MB
+  max_video_size: 524288000  # 500MB
+
+# 改写配置
+rewrite:
+  # 默认改写风格
+  default_style: "humorous"
+  
+  # 可用风格
+  styles:
+    - humorous      # 幽默风趣
+    - professional  # 专业严谨
+    - emotional     # 情感共鸣
+    - concise       # 简洁直白
+    - storytelling  # 故事叙述
+  
+  # 内容长度限制
+  max_length: 500
+  min_length: 20
+  
+  # 敏感词列表（会被替换为***）
+  sensitive_words:
+    - "敏感词1"
+    - "敏感词2"
+
+# 输出配置
+output:
+  # 输出目录
+  output_dir: "data/processed"
+  
+  # 输出格式: json | csv | both
+  format: "json"
+  
+  # 是否保存原始数据
+  save_raw: true
+  
+  # 是否保存改写后的数据
+  save_rewritten: true
+
+# 日志配置
+logging:
+  # 日志级别: DEBUG | INFO | WARNING | ERROR
+  level: "INFO"
+  
+  # 日志文件
+  file: "logs/wanghong.log"
+  
+  # 控制台输出
+  console: true
+  
+  # 日志轮转
+  max_bytes: 10485760  # 10MB
+  backup_count: 5

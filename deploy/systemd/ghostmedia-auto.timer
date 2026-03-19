@@ -1,0 +1,12 @@
+[Unit]
+Description=Run GhostMedia Auto Cycle every 2 hours
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=2h
+Persistent=true
+RandomizedDelaySec=5min
+Unit=ghostmedia-auto.service
+
+[Install]
+WantedBy=timers.target
